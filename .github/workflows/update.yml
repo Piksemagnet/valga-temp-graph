@@ -2,7 +2,7 @@ name: Update Valga Temp Graph
 
 on:
   schedule:
-   - cron: '0 */1 * * *'   # iga tund täistunnil
+   - cron: '*/10 * * * *'   # iga 10 minuti tagant
   workflow_dispatch:  # Võimalus käivitada käsitsi GitHubi liideses
 
 jobs:
