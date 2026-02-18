@@ -1,0 +1,27 @@
+name: Update Valga Temp Graph
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'  # Iga 10 minuti tagant
+  workflow_dispatch:  # Võimalus käivitada käsitsi GitHubi liideses
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Install dependencies
+      run: pip install requests pandas matplotlib
+    - name: Run script
+      run: python script.py
+    - name: Commit and push changes
+      run: |
+        git config --global user.name 'GitHub Action'
+        git config --global user.email 'action@github.com'
+        git add data.csv plot.png
+        git commit -m "Uuenda Valga temperatuuriandmeid ja graafikut" || echo "Muutusi pole"
+        git push
