@@ -76,7 +76,7 @@ ax.xaxis.set_major_locator(mdates.AutoDateLocator(maxticks=15))
 plt.xticks(rotation=45, ha="right")
 
 # Lisad
-plt.title("Valga õhutemperatuur), fontsize=14, pad=15)
+plt.title("Valga õhutemperatuur", fontsize=14, pad=15)
 plt.xlabel("Aeg", fontsize=12)
 plt.ylabel("Temperatuur °C", fontsize=12)
 plt.grid(True, linestyle="--", alpha=0.7)
