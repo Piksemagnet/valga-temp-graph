@@ -1,57 +1,97 @@
-import requests
-import xml.etree.ElementTree as ET
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from datetime import datetime
 import os
 
-# URL XML-andmetega
-url = 'https://www.ilmateenistus.ee/ilma_andmed/xml/observations.php'
+# Failinimed
+DATA_FILE = "data.csv"
+PLOT_FILE = "plot.png"
 
-# Hangi andmed
-response = requests.get(url)
-tree = ET.fromstring(response.content)
-
-# Ajatempel (Unix timestamp)
-timestamp = int(tree.attrib['timestamp'])
-dt = datetime.fromtimestamp(timestamp)
-
-# Leia Valga jaam
-temp = None
-for station in tree.findall('station'):
-    name = station.find('name').text
-    if name and 'Valga' in name:  # Otsi 'Valga' sisaldavat nime (nt 'Valga')
-        temp_str = station.find('airtemperature').text
-        if temp_str:
-            temp = float(temp_str)
-        break
-
-if temp is None:
-    print("Valga andmeid ei leitud!")
-    exit(1)
-
-# Lae olemasolev CSV või loo uus
-if os.path.exists('data.csv'):
-    df = pd.read_csv('data.csv')
+# 1. Laeme olemasolevad andmed (kui fail on olemas)
+if os.path.exists(DATA_FILE):
+    df = pd.read_csv(DATA_FILE, parse_dates=["datetime"])
+    print("Olemasolevad andmed loetud, ridu:", len(df))
 else:
-    df = pd.DataFrame(columns=['timestamp', 'datetime', 'temperature'])
+    df = pd.DataFrame(columns=["datetime", "temperature"])
+    print("Uus andmefail luuakse")
 
-# Lisa uus rida (väldi duplikaate, kui timestamp on sama)
-if not df.empty and df['timestamp'].iloc[-1] == timestamp:
-    print("Andmed juba olemas, ei lisa duplikaati.")
-else:
-    new_row = pd.DataFrame({'timestamp': [timestamp], 'datetime': [dt], 'temperature': [temp]})
-    df = pd.concat([df, new_row], ignore_index=True)
-    df.to_csv('data.csv', index=False)
+# Veendume, et datetime veerg on datetime tüüpi
+df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce", utc=False)
+df = df.dropna(subset=["datetime"])           # eemaldame vigased read
+df = df.sort_values("datetime").drop_duplicates(subset=["datetime"])
 
-# Genereeri graafik (aja vs temperatuuri)
-plt.figure(figsize=(10, 5))
-plt.plot(df['datetime'], df['temperature'], marker='o')
-plt.title('Valga temperatuuriandmed')
-plt.xlabel('Aeg')
-plt.ylabel('Temperatuur (°C)')
-plt.grid(True)
-plt.xticks(rotation=45)
+# Siin peaks tavaliselt tulema sinu andmete allalaadimise osa
+# Näide – asenda see päris andmeallikaga (nt requests + bs4 või API)
+# --------------------------------------------------------------------
+# Näidisandmed testimiseks (kui päris andmeid veel pole)
+if len(df) == 0:
+    print("Testandmed, kuna andmeid pole veel")
+    test_data = [
+        {"datetime": "2025-02-01 00:00", "temperature": -3.2},
+        {"datetime": "2025-02-01 01:00", "temperature": -3.8},
+        {"datetime": "2025-02-01 02:00", "temperature": -4.1},
+    ]
+    new_df = pd.DataFrame(test_data)
+    new_df["datetime"] = pd.to_datetime(new_df["datetime"])
+    df = pd.concat([df, new_df], ignore_index=True)
+
+# Siia tuleb sinu tegelik andmete hankimise kood, nt:
+#
+# import requests
+# from bs4 import BeautifulSoup
+#
+# url = "https://www.ilmateenistus.ee/ilmaandmed/vaatlused/?id=26229"  # Valga jaam
+# response = requests.get(url)
+# soup = BeautifulSoup(response.text, "html.parser")
+# ... leia temperatuur ja aeg ...
+# new_row = {"datetime": datetime.now(), "temperature": temperatuur}
+# new_df = pd.DataFrame([new_row])
+# df = pd.concat([df, new_df], ignore_index=True)
+# --------------------------------------------------------------------
+
+# Salvestame uuendatud andmed tagasi
+df.to_csv(DATA_FILE, index=False)
+print("Andmed salvestatud. Kokku ridu:", len(df))
+
+# 2. Joonistame graafiku
+plt.figure(figsize=(12, 6))
+
+# Peamine plot
+plt.plot(
+    df["datetime"],
+    df["temperature"],
+    marker="o",
+    markersize=4,
+    linestyle="-",
+    linewidth=1.5,
+    color="#1f77b4",
+    label="Õhutemperatuur"
+)
+
+# X-telje formaatimine (väga oluline!)
+ax = plt.gca()
+ax.xaxis.set_major_formatter(mdates.DateFormatter("%d.%m %H:%M"))
+ax.xaxis.set_major_locator(mdates.AutoDateLocator(maxticks=15))
+plt.xticks(rotation=45, ha="right")
+
+# Lisad
+plt.title("Valga õhutemperatuur (automaatne uuendus)", fontsize=14, pad=15)
+plt.xlabel("Aeg", fontsize=12)
+plt.ylabel("Temperatuur °C", fontsize=12)
+plt.grid(True, linestyle="--", alpha=0.7)
+plt.legend(loc="upper left")
+
+# Piirangud, et graafik ei veniks liiga pikaks (nt viimased 7 päeva)
+if len(df) > 0:
+    start_time = df["datetime"].max() - pd.Timedelta(days=7)
+    plt.xlim(left=start_time)
+
 plt.tight_layout()
-plt.savefig('plot.png')
-plt.close()
+
+# Salvestame pildi
+plt.savefig(PLOT_FILE, dpi=120, bbox_inches="tight")
+print("Graafik salvestatud:", PLOT_FILE)
+
+# Lõpetame (matplotlibi jaoks hea tava Actionsis)
+plt.close("all")
